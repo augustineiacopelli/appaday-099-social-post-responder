@@ -1,0 +1,1342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Social Post Responder | AppADay 099</title>
+<meta name="description" content="Paste a batch of social posts. Claude decides which ones are worth a reply from you, marks the line worth answering, and drafts a short human response for each.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Familjen+Grotesk:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#EDEEF1;
+  --card:#FFFFFF;
+  --ink:#181A1F;
+  --ink-2:#41454E;
+  --ink-3:#6A6F79;
+  --line:#D9DCE2;
+  --line-soft:#E7E9ED;
+  --indigo:#3B33C7;
+  --indigo-soft:#EAE8FB;
+  --mark:#D6F24B;
+  --amber:#A96A12;
+  --amber-soft:#F7EEDD;
+  --pass:#6E737D;
+  --danger:#A32C24;
+  --radius:14px;
+  --shadow:0 1px 0 rgba(24,26,31,.04), 0 8px 24px -18px rgba(24,26,31,.5);
+  --sans:"Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --serif:"Newsreader", Georgia, serif;
+  --mono:"DM Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  min-height:100dvh;
+  display:flex;
+  flex-direction:column;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:16px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  -webkit-text-size-adjust:100%;
+}
+button{font-family:inherit;font-size:inherit;color:inherit;cursor:pointer;}
+textarea,input,select{font-family:inherit;font-size:inherit;color:inherit;}
+a{color:var(--indigo);}
+:focus-visible{outline:2px solid var(--indigo);outline-offset:2px;border-radius:4px;}
+
+/* ---------- top bar ---------- */
+.topbar{
+  position:sticky;top:0;z-index:30;
+  background:rgba(237,238,241,.92);
+  backdrop-filter:saturate(150%) blur(8px);
+  border-bottom:1px solid var(--line);
+}
+.topbar-inner{
+  max-width:920px;margin:0 auto;
+  padding:10px 16px;
+  display:flex;align-items:center;gap:12px;
+}
+.brand{display:flex;align-items:center;gap:10px;min-width:0;}
+.num{
+  font-family:var(--mono);font-size:12px;letter-spacing:.06em;
+  background:var(--ink);color:var(--paper);
+  padding:4px 7px;border-radius:6px;flex:none;
+}
+.brand-name{
+  font-weight:700;letter-spacing:-.015em;font-size:17px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.top-actions{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+.backlink{
+  font-family:var(--mono);font-size:12px;text-decoration:none;
+  color:var(--ink-2);border:1px solid var(--line);
+  padding:6px 10px;border-radius:999px;background:var(--card);
+  white-space:nowrap;
+}
+.backlink:hover{border-color:var(--ink-3);color:var(--ink);}
+.icon-btn{
+  width:34px;height:34px;border-radius:999px;
+  border:1px solid var(--line);background:var(--card);
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;line-height:1;
+}
+.icon-btn:hover{border-color:var(--ink-3);}
+.icon-btn.warn{border-color:var(--amber);color:var(--amber);}
+
+/* ---------- layout ---------- */
+main{flex:1 1 auto;width:100%;max-width:920px;margin:0 auto;padding:22px 16px 40px;}
+.panel{
+  background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius);box-shadow:var(--shadow);
+  padding:20px;
+}
+.lede{margin:0 0 18px;}
+.lede h1{
+  font-size:clamp(26px,6.4vw,38px);line-height:1.06;
+  letter-spacing:-.03em;margin:0 0 8px;font-weight:700;
+}
+.lede p{margin:0;color:var(--ink-2);max-width:56ch;font-size:15px;}
+.eyebrow{
+  font-family:var(--mono);font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-3);margin:0 0 10px;
+}
+
+/* ---------- compose ---------- */
+.paste{
+  width:100%;min-height:190px;resize:vertical;
+  border:1px solid var(--line);border-radius:10px;
+  padding:14px;background:#FCFCFD;
+  font-family:var(--serif);font-size:16px;line-height:1.55;
+}
+.paste:focus{outline:none;border-color:var(--indigo);box-shadow:0 0 0 3px var(--indigo-soft);}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px;}
+.seg{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:#FCFCFD;}
+.seg button{
+  border:0;background:transparent;padding:7px 12px;
+  font-family:var(--mono);font-size:12px;color:var(--ink-2);
+}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper);}
+.seg button + button{border-left:1px solid var(--line);}
+.link-btn{
+  background:none;border:0;padding:4px 2px;
+  font-family:var(--mono);font-size:12px;color:var(--indigo);
+  text-decoration:underline;text-underline-offset:3px;
+}
+.link-btn.quiet{color:var(--ink-3);}
+.detect{
+  font-family:var(--mono);font-size:12px;color:var(--ink-3);
+  margin-left:auto;
+}
+.detect strong{color:var(--ink);font-weight:500;}
+.go{
+  margin-top:16px;width:100%;
+  border:0;border-radius:10px;background:var(--indigo);color:#fff;
+  padding:14px 18px;font-weight:600;font-size:16px;letter-spacing:-.01em;
+}
+.go:hover{background:#332BB0;}
+.go:disabled{background:#B9B7DF;cursor:not-allowed;}
+.hint{font-size:13px;color:var(--ink-3);margin:10px 2px 0;}
+.notice{
+  margin-top:14px;border:1px solid var(--amber);background:var(--amber-soft);
+  color:#6E4406;border-radius:10px;padding:12px 14px;font-size:14px;
+}
+.notice.bad{border-color:var(--danger);background:#FBEDEC;color:#7A1F19;}
+.notice button{margin-top:8px;}
+
+/* ---------- progress ---------- */
+.progress{margin-top:16px;display:none;}
+.progress.on{display:block;}
+.bar{height:6px;border-radius:999px;background:var(--line-soft);overflow:hidden;}
+.bar span{display:block;height:100%;width:0;background:var(--indigo);transition:width .35s ease;}
+.progress p{font-family:var(--mono);font-size:12px;color:var(--ink-3);margin:8px 0 0;}
+
+/* ---------- tally ---------- */
+.tally{
+  display:flex;gap:10px;margin:0 0 14px;flex-wrap:wrap;
+}
+.stat{
+  flex:1 1 120px;background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:12px 14px;
+}
+.stat b{display:block;font-size:26px;line-height:1.1;letter-spacing:-.02em;}
+.stat span{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);}
+.stat.reply b{color:var(--indigo);}
+.stat.maybe b{color:var(--amber);}
+.stat.pass b{color:var(--pass);}
+
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+.chip{
+  border:1px solid var(--line);background:var(--card);
+  border-radius:999px;padding:7px 13px;
+  font-family:var(--mono);font-size:12px;color:var(--ink-2);
+}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+.chip .n{opacity:.6;margin-left:5px;}
+
+/* ---------- cards ---------- */
+.cards{display:flex;flex-direction:column;gap:14px;}
+.card{
+  background:var(--card);border:1px solid var(--line);
+  border-left:5px solid var(--pass);
+  border-radius:var(--radius);box-shadow:var(--shadow);
+  padding:16px 16px 14px;
+  animation:rise .32s ease both;
+}
+@keyframes rise{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.card.v-reply{border-left-color:var(--indigo);}
+.card.v-maybe{border-left-color:var(--amber);}
+.card.v-pass{background:#F7F8F9;}
+.card.sent{border-left-color:#2F7D4F;}
+.card-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+.pill{
+  font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  padding:4px 9px;border-radius:999px;border:1px solid currentColor;
+}
+.pill.reply{color:var(--indigo);background:var(--indigo-soft);border-color:transparent;}
+.pill.maybe{color:var(--amber);background:var(--amber-soft);border-color:transparent;}
+.pill.pass{color:var(--pass);background:#EDEFF2;border-color:transparent;}
+.slip{font-family:var(--mono);font-size:11px;color:var(--ink-3);}
+.sent-stamp{
+  margin-left:auto;font-family:var(--mono);font-size:11px;letter-spacing:.1em;
+  text-transform:uppercase;color:#2F7D4F;
+}
+.post{
+  font-family:var(--serif);font-size:16px;line-height:1.6;color:var(--ink);
+  white-space:pre-wrap;word-break:break-word;margin:0;
+}
+.post.clamped{
+  display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;
+  overflow:hidden;
+}
+mark.hl{
+  background:linear-gradient(105deg, rgba(214,242,75,0) 0%, var(--mark) 3%, var(--mark) 97%, rgba(214,242,75,0) 100%);
+  color:inherit;padding:1px 2px;border-radius:2px;
+  box-decoration-break:clone;-webkit-box-decoration-break:clone;
+  animation:swipe .5s ease both;
+}
+@keyframes swipe{from{clip-path:inset(0 100% 0 0);}to{clip-path:inset(0 0 0 0);}}
+.reason{
+  margin:12px 0 0;font-size:14.5px;color:var(--ink-2);
+}
+.angle{
+  margin:8px 0 0;font-size:13px;color:var(--ink-2);
+  border-left:2px solid var(--mark);padding-left:10px;
+}
+.care{
+  margin:12px 0 0;border:1px solid var(--amber);background:var(--amber-soft);
+  border-radius:10px;padding:10px 12px;font-size:13.5px;color:#6E4406;
+}
+.reply-block{margin-top:14px;border-top:1px solid var(--line-soft);padding-top:14px;}
+.reply-box{
+  width:100%;min-height:96px;resize:vertical;
+  border:1px solid var(--line);border-radius:10px;padding:12px;
+  background:#FCFCFD;font-size:15px;line-height:1.55;
+}
+.reply-box:focus{outline:none;border-color:var(--indigo);box-shadow:0 0 0 3px var(--indigo-soft);}
+.meta-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;}
+.count{font-family:var(--mono);font-size:11px;color:var(--ink-3);}
+.count.over{color:var(--danger);}
+.flags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.flag{
+  font-family:var(--mono);font-size:11px;
+  background:#FBEDEC;color:#7A1F19;border-radius:6px;padding:3px 7px;
+}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center;}
+.btn{
+  border:1px solid var(--line);background:var(--card);
+  border-radius:9px;padding:9px 13px;font-size:14px;font-weight:500;
+}
+.btn:hover{border-color:var(--ink-3);}
+.btn.primary{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+.btn.primary:hover{background:#000;}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+.tone{
+  border:1px solid var(--line);border-radius:9px;padding:9px 8px;
+  background:var(--card);font-size:13px;
+}
+.card-err{margin-top:10px;font-size:13px;color:var(--danger);}
+
+/* ---------- footer ---------- */
+footer{
+  border-top:1px solid var(--line);
+  padding:18px 16px 26px;
+}
+.foot-inner{
+  max-width:920px;margin:0 auto;
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  font-family:var(--mono);font-size:12px;color:var(--ink-3);
+}
+.streak{display:flex;align-items:center;gap:6px;}
+.dot{
+  width:14px;height:14px;border-radius:4px;background:var(--line);
+  display:inline-block;
+}
+.dot.on{background:var(--indigo);}
+.dot.today{box-shadow:0 0 0 2px var(--paper),0 0 0 3px var(--ink);}
+.foot-inner a{color:var(--ink-2);text-decoration:none;border-bottom:1px solid var(--line);}
+.foot-inner a:hover{color:var(--ink);}
+.foot-right{margin-left:auto;}
+
+/* ---------- modal ---------- */
+.scrim{
+  position:fixed;inset:0;z-index:60;background:rgba(24,26,31,.5);
+  display:none;align-items:flex-start;justify-content:center;
+  padding:24px 14px;overflow-y:auto;
+}
+.scrim.on{display:flex;}
+.modal{
+  background:var(--card);border-radius:16px;width:100%;max-width:520px;
+  padding:20px;box-shadow:0 30px 60px -20px rgba(0,0,0,.5);
+  animation:rise .2s ease both;
+}
+.modal h2{margin:0 0 4px;font-size:20px;letter-spacing:-.02em;}
+.modal p.sub{margin:0 0 16px;font-size:13.5px;color:var(--ink-3);}
+.field{margin-bottom:14px;}
+.field label{
+  display:block;font-family:var(--mono);font-size:11px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-3);margin-bottom:5px;
+}
+.field input,.field textarea,.field select{
+  width:100%;border:1px solid var(--line);border-radius:9px;
+  padding:10px 12px;background:#FCFCFD;font-size:15px;
+}
+.field textarea{min-height:70px;resize:vertical;line-height:1.5;}
+.field input:focus,.field textarea:focus,.field select:focus{
+  outline:none;border-color:var(--indigo);box-shadow:0 0 0 3px var(--indigo-soft);
+}
+.field .note{font-size:12px;color:var(--ink-3);margin:5px 2px 0;}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap;}
+
+/* ---------- toast ---------- */
+.toast{
+  position:fixed;left:50%;bottom:22px;transform:translate(-50%,14px);
+  background:var(--ink);color:var(--paper);
+  padding:10px 16px;border-radius:999px;font-size:14px;
+  opacity:0;pointer-events:none;transition:opacity .2s ease,transform .2s ease;
+  z-index:80;max-width:90vw;text-align:center;
+}
+.toast.on{opacity:1;transform:translate(-50%,0);}
+
+.hidden{display:none !important;}
+.sr{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;
+}
+
+@media (max-width:520px){
+  main{padding:16px 12px 32px;}
+  .panel{padding:16px;}
+  .detect{margin-left:0;width:100%;}
+  .stat b{font-size:22px;}
+  .backlink{padding:6px 8px;}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.001s !important;transition-duration:.001s !important;}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="num">099</span>
+      <span class="brand-name">Social Post Responder</span>
+    </div>
+    <div class="top-actions">
+      <a class="backlink" href="https://augustineiacopelli.github.io/appaday/">AppADay</a>
+      <button class="icon-btn" id="gear" type="button" aria-label="Settings" title="Settings">&#9881;</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- COMPOSE -->
+  <section class="panel" id="compose">
+    <div class="lede">
+      <p class="eyebrow">Daily outreach, triaged</p>
+      <h1>Paste the feed. Keep the three posts worth answering.</h1>
+      <p>Drop in a batch of posts you scrolled past today. Claude reads each one, tells you honestly whether you have anything to add, marks the line worth answering, and drafts a reply in your voice.</p>
+    </div>
+
+    <label class="sr" for="batch">Paste your posts</label>
+    <textarea class="paste" id="batch" placeholder="Paste posts here. Separate them however you like, then pick the separator below."></textarea>
+
+    <div class="row">
+      <div class="seg" role="group" aria-label="How posts are separated">
+        <button type="button" data-split="blank" aria-pressed="true">Blank line</button>
+        <button type="button" data-split="rule" aria-pressed="false">--- line</button>
+        <button type="button" data-split="line" aria-pressed="false">One per line</button>
+      </div>
+      <button type="button" class="link-btn" id="sample">Load a sample batch</button>
+      <button type="button" class="link-btn quiet" id="clear-batch">Clear</button>
+      <span class="detect" id="detect"><strong>0</strong> posts detected</span>
+    </div>
+
+    <button class="go" id="read" type="button">Read the batch</button>
+    <p class="hint" id="hint">Your API key stays in this browser. Nothing is stored on a server.</p>
+    <div id="compose-error"></div>
+
+    <div class="progress" id="progress">
+      <div class="bar"><span id="bar-fill"></span></div>
+      <p id="progress-text">Reading</p>
+    </div>
+  </section>
+
+  <!-- RESULTS -->
+  <section id="results" class="hidden">
+    <div class="tally">
+      <div class="stat reply"><b id="t-reply">0</b><span>Worth a reply</span></div>
+      <div class="stat maybe"><b id="t-maybe">0</b><span>Only if you know them</span></div>
+      <div class="stat pass"><b id="t-pass">0</b><span>Skip</span></div>
+      <div class="stat"><b id="t-sent">0</b><span>Sent today</span></div>
+    </div>
+
+    <div class="filters" id="filters">
+      <button class="chip" type="button" data-filter="reply" aria-pressed="true">Worth a reply <span class="n" id="n-reply">0</span></button>
+      <button class="chip" type="button" data-filter="maybe" aria-pressed="false">Maybe <span class="n" id="n-maybe">0</span></button>
+      <button class="chip" type="button" data-filter="pass" aria-pressed="false">Skip <span class="n" id="n-pass">0</span></button>
+      <button class="chip" type="button" data-filter="all" aria-pressed="false">All <span class="n" id="n-all">0</span></button>
+      <button class="chip" type="button" id="new-batch">New batch</button>
+    </div>
+
+    <div class="cards" id="cards"></div>
+    <p class="hint" id="empty-note"></p>
+  </section>
+</main>
+
+<footer>
+  <div class="foot-inner">
+    <span class="streak" id="streak" title="Replies sent over the last seven days"></span>
+    <span id="streak-label">No replies sent yet</span>
+    <span class="foot-right">App 099 &middot; <a href="https://augustineiacopelli.github.io/appaday/">AppADay by Augustine Iacopelli</a></span>
+  </div>
+</footer>
+
+<!-- SETTINGS -->
+<div class="scrim" id="settings-scrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <h2 id="settings-title">Settings</h2>
+    <p class="sub">The voice notes below go into every request, so replies sound like you rather than like a brand account.</p>
+
+    <div class="field">
+      <label for="apikey">Anthropic API key</label>
+      <input id="apikey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-...">
+      <p class="note">Stored only in this browser's local storage.</p>
+    </div>
+    <div class="field">
+      <label for="v-name">Your name</label>
+      <input id="v-name" type="text" placeholder="Augustine Iacopelli">
+    </div>
+    <div class="field">
+      <label for="v-role">What you do</label>
+      <input id="v-role" type="text" placeholder="Higher ed administrator who builds small web apps daily">
+    </div>
+    <div class="field">
+      <label for="v-known">What you want to be known for</label>
+      <textarea id="v-known" placeholder="Shipping consistently, practical automation, plain talk about enrollment operations"></textarea>
+    </div>
+    <div class="field">
+      <label for="v-never">Things you never say</label>
+      <textarea id="v-never" placeholder="Buzzwords, hustle talk, anything that sounds like a press release"></textarea>
+    </div>
+    <div class="field">
+      <label for="v-len">Reply length</label>
+      <select id="v-len">
+        <option value="220">Short, about 220 characters</option>
+        <option value="380">Medium, about 380 characters</option>
+        <option value="600">Long, about 600 characters</option>
+      </select>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" type="button" id="settings-close">Cancel</button>
+      <button class="btn primary" type="button" id="settings-save">Save settings</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM -->
+<div class="scrim" id="confirm-scrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <h2 id="confirm-title">Start a new batch?</h2>
+    <p class="sub" id="confirm-body">This clears the current results and any replies you have edited but not sent.</p>
+    <div class="modal-actions">
+      <button class="btn" type="button" id="confirm-no">Keep them</button>
+      <button class="btn primary" type="button" id="confirm-yes">Clear and start over</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+"use strict";
+
+var CLAUDE_MODEL = 'claude-sonnet-5';
+var API_URL = 'https://api.anthropic.com/v1/messages';
+var CHUNK = 4;
+var MAX_POSTS = 20;
+
+var K_KEY   = 'appaday099-key';
+var K_VOICE = 'appaday099-voice';
+var K_STATE = 'appaday099-state';
+var K_LOG   = 'appaday099-log';
+
+/* ---------------- storage helpers ---------------- */
+function load(key, fallback){
+  try{
+    var raw = localStorage.getItem(key);
+    if(raw === null || raw === undefined) return fallback;
+    return JSON.parse(raw);
+  }catch(e){ return fallback; }
+}
+function save(key, value){
+  try{ localStorage.setItem(key, JSON.stringify(value)); return true; }
+  catch(e){ return false; }
+}
+function drop(key){
+  try{ localStorage.removeItem(key); }catch(e){}
+}
+
+/* ---------------- pure helpers (testable) ---------------- */
+function splitBatch(text, mode){
+  if(!text) return [];
+  var normalized = String(text).replace(/\r\n?/g, '\n');
+  var parts;
+  if(mode === 'rule'){
+    parts = normalized.split(/^[ \t]*(?:-{3,}|={3,}|\*{3,})[ \t]*$/m);
+  }else if(mode === 'line'){
+    parts = normalized.split(/\n/);
+  }else{
+    parts = normalized.split(/\n[ \t]*\n+/);
+  }
+  var out = [];
+  for(var i = 0; i < parts.length; i++){
+    var t = parts[i].replace(/^\s+|\s+$/g, '');
+    if(t.length) out.push(t);
+  }
+  return out;
+}
+
+var CLICHES = [
+  'great post','couldn\'t agree more','could not agree more','this resonates',
+  'well said','spot on','thanks for sharing','so true','love this','this is gold',
+  'food for thought','game changer','game-changer','at the end of the day',
+  'circle back','low-hanging fruit','move the needle','synergy','leverage',
+  'in today\'s fast-paced','delve','tapestry','testament to','it\'s not just',
+  'i couldn\'t have said it better','100%','absolutely this','this!'
+];
+
+function findFlags(text){
+  var flags = [];
+  if(!text) return flags;
+  var lower = String(text).toLowerCase();
+  for(var i = 0; i < CLICHES.length; i++){
+    if(lower.indexOf(CLICHES[i]) !== -1) flags.push('"' + CLICHES[i] + '"');
+  }
+  if(/#\w/.test(text)) flags.push('hashtag');
+  if(/[\u2014\u2013]/.test(text)) flags.push('dash');
+  if(/[\u2600-\u27BF]|[\uD83C-\uDBFF][\uDC00-\uDFFF]/.test(text)) flags.push('emoji');
+  var seen = {}, unique = [];
+  for(var j = 0; j < flags.length; j++){
+    if(!seen[flags[j]]){ seen[flags[j]] = 1; unique.push(flags[j]); }
+  }
+  return unique;
+}
+
+function escapeHtml(s){
+  return String(s === null || s === undefined ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function highlightQuote(postText, quote){
+  var safe = escapeHtml(postText);
+  if(!quote) return safe;
+  var q = String(quote).replace(/^\s+|\s+$/g, '');
+  if(q.length < 4) return safe;
+  var idx = postText.toLowerCase().indexOf(q.toLowerCase());
+  if(idx === -1){
+    var loose = q.replace(/\s+/g, ' ').toLowerCase();
+    var flat = postText.replace(/\s+/g, ' ').toLowerCase();
+    var li = flat.indexOf(loose);
+    if(li === -1) return safe;
+    var words = q.replace(/\s+/g, ' ').split(' ');
+    q = words.slice(0, Math.min(4, words.length)).join(' ');
+    idx = postText.toLowerCase().indexOf(q.toLowerCase());
+    if(idx === -1) return safe;
+  }
+  var before = postText.slice(0, idx);
+  var hit = postText.slice(idx, idx + q.length);
+  var after = postText.slice(idx + q.length);
+  return escapeHtml(before) + '<mark class="hl">' + escapeHtml(hit) + '</mark>' + escapeHtml(after);
+}
+
+function parseModelJson(raw){
+  if(!raw) return null;
+  var text = String(raw).replace(/```json/gi, '').replace(/```/g, '');
+  text = text.replace(/^\s+|\s+$/g, '');
+  try{ return JSON.parse(text); }catch(e){}
+  var start = text.indexOf('[');
+  var end = text.lastIndexOf(']');
+  if(start !== -1 && end > start){
+    try{ return JSON.parse(text.slice(start, end + 1)); }catch(e2){}
+  }
+  start = text.indexOf('{');
+  end = text.lastIndexOf('}');
+  if(start !== -1 && end > start){
+    try{ return JSON.parse(text.slice(start, end + 1)); }catch(e3){}
+  }
+  return null;
+}
+
+function normalizeVerdict(v){
+  var s = String(v || '').toLowerCase();
+  if(s.indexOf('reply') === 0 || s === 'engage' || s === 'yes') return 'reply';
+  if(s.indexOf('maybe') === 0 || s === 'optional') return 'maybe';
+  return 'pass';
+}
+
+function todayKey(d){
+  var t = d || new Date();
+  var m = String(t.getMonth() + 1);
+  var day = String(t.getDate());
+  if(m.length < 2) m = '0' + m;
+  if(day.length < 2) day = '0' + day;
+  return t.getFullYear() + '-' + m + '-' + day;
+}
+
+function lastSevenDays(log, today){
+  var out = [];
+  var base = today ? new Date(today + 'T12:00:00') : new Date();
+  for(var i = 6; i >= 0; i--){
+    var d = new Date(base.getTime());
+    d.setDate(d.getDate() - i);
+    var key = todayKey(d);
+    out.push({ date: key, count: (log && log[key]) ? log[key] : 0 });
+  }
+  return out;
+}
+
+function countVerdicts(items){
+  var c = { reply: 0, maybe: 0, pass: 0 };
+  for(var i = 0; i < items.length; i++){
+    var v = items[i].verdict;
+    if(c[v] === undefined) c[v] = 0;
+    c[v]++;
+  }
+  return c;
+}
+
+/* ---------------- state ---------------- */
+var state = {
+  splitMode: 'blank',
+  items: [],
+  filter: 'reply',
+  busy: false
+};
+var voice = load(K_VOICE, { name:'', role:'', known:'', never:'', len:'220' });
+var replyLog = load(K_LOG, {});
+
+/* ---------------- dom ---------------- */
+function $(id){ return document.getElementById(id); }
+var elBatch = $('batch'), elDetect = $('detect'), elRead = $('read');
+var elCompose = $('compose'), elResults = $('results'), elCards = $('cards');
+var elProgress = $('progress'), elBarFill = $('bar-fill'), elProgressText = $('progress-text');
+var elComposeError = $('compose-error'), elToast = $('toast'), elGear = $('gear');
+var elEmptyNote = $('empty-note');
+
+function toast(msg){
+  elToast.textContent = msg;
+  elToast.classList.add('on');
+  window.setTimeout(function(){ elToast.classList.remove('on'); }, 2200);
+}
+
+function showError(msg, retry){
+  elComposeError.innerHTML = '';
+  var box = document.createElement('div');
+  box.className = 'notice bad';
+  box.appendChild(document.createTextNode(msg));
+  if(retry){
+    var b = document.createElement('button');
+    b.className = 'btn';
+    b.type = 'button';
+    b.textContent = 'Try again';
+    b.onclick = function(){ clearError(); runBatch(); };
+    box.appendChild(document.createElement('br'));
+    box.appendChild(b);
+  }
+  elComposeError.appendChild(box);
+}
+function clearError(){ elComposeError.innerHTML = ''; }
+
+/* ---------------- compose wiring ---------------- */
+function updateDetect(){
+  var n = splitBatch(elBatch.value, state.splitMode).length;
+  elDetect.innerHTML = '<strong>' + n + '</strong> post' + (n === 1 ? '' : 's') + ' detected';
+  elRead.disabled = (n === 0) || state.busy;
+  elRead.textContent = n > 1 ? ('Read all ' + Math.min(n, MAX_POSTS) + ' posts') : 'Read the batch';
+}
+
+elBatch.addEventListener('input', updateDetect);
+
+var segButtons = document.querySelectorAll('[data-split]');
+for(var si = 0; si < segButtons.length; si++){
+  (function(btn){
+    btn.addEventListener('click', function(){
+      state.splitMode = btn.getAttribute('data-split');
+      for(var k = 0; k < segButtons.length; k++){
+        segButtons[k].setAttribute('aria-pressed', segButtons[k] === btn ? 'true' : 'false');
+      }
+      updateDetect();
+    });
+  })(segButtons[si]);
+}
+
+$('clear-batch').addEventListener('click', function(){
+  elBatch.value = '';
+  clearError();
+  updateDetect();
+  elBatch.focus();
+});
+
+var SAMPLE = [
+  "Three years ago I was told our enrollment funnel was too small to fix with process. We rewrote the first 48 hours of contact instead of buying another platform. Inquiry to application went from 9 percent to 17 percent. The tooling was never the problem.",
+  "I was laid off Friday after eleven years. Still processing it. If you know of anything in instructional design in the Midwest I would be grateful for the introduction.",
+  "Hot take: if your team is not using AI daily you are already obsolete. The gap between the fast and the slow has never been wider. Who agrees?",
+  "Genuine question for the higher ed people here. How are you handling advisor caseloads above 400 students? We have tried triage tiers and it still feels like triage.",
+  "Excited to announce that I have joined Northwind Analytics as VP of Growth. Grateful for the journey and the people who believed in me along the way."
+];
+
+$('sample').addEventListener('click', function(){
+  elBatch.value = SAMPLE.join('\n\n');
+  state.splitMode = 'blank';
+  for(var k = 0; k < segButtons.length; k++){
+    segButtons[k].setAttribute('aria-pressed', segButtons[k].getAttribute('data-split') === 'blank' ? 'true' : 'false');
+  }
+  clearError();
+  updateDetect();
+  toast('Five sample posts loaded');
+});
+
+/* ---------------- settings ---------------- */
+var scrimSettings = $('settings-scrim');
+function openSettings(){
+  $('apikey').value = load(K_KEY, '') || '';
+  $('v-name').value = voice.name || '';
+  $('v-role').value = voice.role || '';
+  $('v-known').value = voice.known || '';
+  $('v-never').value = voice.never || '';
+  $('v-len').value = voice.len || '220';
+  scrimSettings.classList.add('on');
+  window.setTimeout(function(){ $('apikey').focus(); }, 40);
+}
+function closeSettings(){ scrimSettings.classList.remove('on'); }
+elGear.addEventListener('click', openSettings);
+$('settings-close').addEventListener('click', closeSettings);
+$('settings-save').addEventListener('click', function(){
+  var key = $('apikey').value.replace(/^\s+|\s+$/g, '');
+  if(key){ save(K_KEY, key); } else { drop(K_KEY); }
+  voice = {
+    name: $('v-name').value.replace(/^\s+|\s+$/g, ''),
+    role: $('v-role').value.replace(/^\s+|\s+$/g, ''),
+    known: $('v-known').value.replace(/^\s+|\s+$/g, ''),
+    never: $('v-never').value.replace(/^\s+|\s+$/g, ''),
+    len: $('v-len').value
+  };
+  save(K_VOICE, voice);
+  closeSettings();
+  markKeyState();
+  toast('Settings saved');
+});
+scrimSettings.addEventListener('click', function(e){
+  if(e.target === scrimSettings) closeSettings();
+});
+
+function markKeyState(){
+  var has = !!load(K_KEY, '');
+  if(has){ elGear.classList.remove('warn'); elGear.title = 'Settings'; }
+  else { elGear.classList.add('warn'); elGear.title = 'Add your API key'; }
+}
+
+/* ---------------- confirm modal ---------------- */
+var scrimConfirm = $('confirm-scrim');
+var confirmAction = null;
+function askConfirm(title, body, fn){
+  $('confirm-title').textContent = title;
+  $('confirm-body').textContent = body;
+  confirmAction = fn;
+  scrimConfirm.classList.add('on');
+}
+$('confirm-no').addEventListener('click', function(){
+  scrimConfirm.classList.remove('on');
+  confirmAction = null;
+});
+$('confirm-yes').addEventListener('click', function(){
+  scrimConfirm.classList.remove('on');
+  if(confirmAction) confirmAction();
+  confirmAction = null;
+});
+scrimConfirm.addEventListener('click', function(e){
+  if(e.target === scrimConfirm){ scrimConfirm.classList.remove('on'); confirmAction = null; }
+});
+
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape'){
+    closeSettings();
+    scrimConfirm.classList.remove('on');
+  }
+});
+
+/* ---------------- prompt building ---------------- */
+function voiceBlock(){
+  var lines = [];
+  lines.push('Name: ' + (voice.name || 'not given'));
+  lines.push('What they do: ' + (voice.role || 'not given'));
+  lines.push('Wants to be known for: ' + (voice.known || 'not given'));
+  lines.push('Never says: ' + (voice.never || 'buzzwords and filler praise'));
+  return lines.join('\n');
+}
+
+function systemPrompt(){
+  var limit = voice.len || '220';
+  return [
+    'You are the triage editor for a professional who spends fifteen minutes a day replying to posts in a professional feed. You read a batch of posts, decide honestly which ones are worth a reply from this specific person, and draft the reply in their voice.',
+    '',
+    'The person:',
+    voiceBlock(),
+    '',
+    'Judgment rules:',
+    'Most posts do not deserve a reply. Marking the majority as pass is the correct outcome for a normal feed.',
+    'Mark reply only when this person has something concrete the other commenters will not have, based on what they do.',
+    'Mark maybe when a reply would be fine but generic, or when it only works if they already know the poster.',
+    'Mark pass for engagement bait, pure self promotion, recruiter spam, and anything where the honest reply is agreement with nothing added.',
+    'A post about a layoff, illness, death, or public failure is never a networking opportunity. If a post is sensitive, set tone_note, keep the reply short, plain and human, and mark it pass if this person does not appear to know the poster.',
+    '',
+    'Reply rules:',
+    'At most ' + limit + ' characters.',
+    'Sound like a person typing quickly, not a brand account.',
+    'Open with the substance. Never open with praise for the post.',
+    'Add exactly one concrete thing: an example, a number, a counterpoint, or a real question.',
+    'No hashtags, no emoji, no em dashes, no exclamation stacking.',
+    'Banned phrases: great post, couldn\'t agree more, this resonates, well said, spot on, thanks for sharing, so true, love this, this is gold, food for thought, game changer.',
+    'Never invent experience or credentials this person has not described.',
+    '',
+    'Return only a JSON array. No prose, no markdown fences. One object per post, in the same order as the input:',
+    '[{"i":0,"verdict":"reply","reason":"one plain sentence on why","quote":"text copied exactly from the post, four to fifteen words, that the reply hooks onto, or empty string","angle":"what this person adds, one short phrase","reply":"the draft reply, empty string when the verdict is pass","tone_note":"only when the post needs care, else empty string"}]'
+  ].join('\n');
+}
+
+function callClaude(system, userText, maxTokens){
+  var key = load(K_KEY, '');
+  if(!key) return Promise.reject(new Error('nokey'));
+  return fetch(API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: maxTokens || 3000,
+      system: system,
+      messages: [{ role: 'user', content: userText }]
+    })
+  }).then(function(res){
+    if(!res.ok){
+      return res.text().then(function(body){
+        var err = new Error('http');
+        err.status = res.status;
+        err.body = body;
+        throw err;
+      });
+    }
+    return res.json();
+  }).then(function(data){
+    var blocks = (data && data.content) || [];
+    var text = '';
+    for(var i = 0; i < blocks.length; i++){
+      if(blocks[i] && blocks[i].type === 'text' && blocks[i].text) text += blocks[i].text;
+    }
+    return text;
+  });
+}
+
+function apiErrorMessage(err){
+  if(!err) return 'Something went wrong. Try again.';
+  if(err.message === 'nokey') return 'Add your Anthropic API key in Settings first, then read the batch.';
+  if(err.status === 401 || err.status === 403) return 'That API key was refused. Open Settings and check it.';
+  if(err.status === 429) return 'The API is rate limiting this key. Wait a moment and try again.';
+  if(err.status === 400) return 'The request was rejected. If a post is very long, trim it and try again.';
+  if(err.status >= 500) return 'The API had a server error. Try again in a moment.';
+  return 'Could not reach the API. Check your connection and try again.';
+}
+
+/* ---------------- batch run ---------------- */
+function runBatch(){
+  if(state.busy) return;
+  var posts = splitBatch(elBatch.value, state.splitMode);
+  if(!posts.length) return;
+  var trimmed = posts.length > MAX_POSTS;
+  posts = posts.slice(0, MAX_POSTS);
+
+  if(!load(K_KEY, '')){
+    showError('Add your Anthropic API key in Settings first, then read the batch.', false);
+    openSettings();
+    return;
+  }
+
+  state.busy = true;
+  state.items = [];
+  clearError();
+  elRead.disabled = true;
+  elProgress.classList.add('on');
+  elBarFill.style.width = '0%';
+  elProgressText.textContent = 'Reading post 1 of ' + posts.length;
+  elResults.classList.add('hidden');
+  elCards.innerHTML = '';
+
+  var chunks = [];
+  for(var i = 0; i < posts.length; i += CHUNK) chunks.push(posts.slice(i, i + CHUNK));
+
+  var done = 0;
+  var chain = Promise.resolve();
+  var failed = null;
+
+  chunks.forEach(function(chunk, ci){
+    chain = chain.then(function(){
+      if(failed) return null;
+      var lines = [];
+      for(var j = 0; j < chunk.length; j++){
+        lines.push('POST ' + j + ':');
+        lines.push(chunk[j]);
+        lines.push('');
+      }
+      return callClaude(systemPrompt(), lines.join('\n'), 3000).then(function(text){
+        var parsed = parseModelJson(text);
+        var rows = [];
+        if(Object.prototype.toString.call(parsed) === '[object Array]') rows = parsed;
+        else if(parsed) rows = [parsed];
+
+        for(var k = 0; k < chunk.length; k++){
+          var row = rows[k] || {};
+          state.items.push({
+            id: 'p' + (ci * CHUNK + k),
+            post: chunk[k],
+            verdict: normalizeVerdict(row.verdict),
+            reason: row.reason || 'No read returned for this one.',
+            quote: row.quote || '',
+            angle: row.angle || '',
+            reply: row.reply || '',
+            tone_note: row.tone_note || '',
+            sent: false,
+            expanded: false
+          });
+        }
+        done += chunk.length;
+        elBarFill.style.width = Math.round((done / posts.length) * 100) + '%';
+        elProgressText.textContent = done >= posts.length
+          ? 'Sorting the batch'
+          : ('Reading post ' + (done + 1) + ' of ' + posts.length);
+        return null;
+      }).catch(function(err){
+        failed = err;
+        return null;
+      });
+    });
+  });
+
+  chain.then(function(){
+    state.busy = false;
+    elProgress.classList.remove('on');
+    updateDetect();
+    if(failed && !state.items.length){
+      showError(apiErrorMessage(failed), true);
+      return;
+    }
+    if(failed){
+      showError(apiErrorMessage(failed) + ' Showing the posts that came back.', false);
+    }
+    var counts = countVerdicts(state.items);
+    state.filter = counts.reply > 0 ? 'reply' : (counts.maybe > 0 ? 'maybe' : 'all');
+    persist();
+    render();
+    if(trimmed) toast('Read the first ' + MAX_POSTS + ' posts. Paste the rest as a second batch.');
+    if(state.items.length) elResults.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+elRead.addEventListener('click', runBatch);
+
+/* ---------------- rendering ---------------- */
+function persist(){
+  save(K_STATE, { items: state.items, filter: state.filter, splitMode: state.splitMode });
+}
+
+function setFilter(f){
+  state.filter = f;
+  persist();
+  render();
+}
+
+var filterButtons = document.querySelectorAll('[data-filter]');
+for(var fi = 0; fi < filterButtons.length; fi++){
+  (function(btn){
+    btn.addEventListener('click', function(){ setFilter(btn.getAttribute('data-filter')); });
+  })(filterButtons[fi]);
+}
+
+$('new-batch').addEventListener('click', function(){
+  askConfirm('Start a new batch?', 'This clears the current results and any replies you have edited but not sent.', function(){
+    state.items = [];
+    drop(K_STATE);
+    elResults.classList.add('hidden');
+    elCards.innerHTML = '';
+    elBatch.value = '';
+    updateDetect();
+    elBatch.focus();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+});
+
+function sentToday(){
+  return replyLog[todayKey()] || 0;
+}
+
+function bumpLog(delta){
+  var key = todayKey();
+  var next = (replyLog[key] || 0) + delta;
+  if(next <= 0) delete replyLog[key];
+  else replyLog[key] = next;
+  save(K_LOG, replyLog);
+  renderStreak();
+  $('t-sent').textContent = String(sentToday());
+}
+
+function renderStreak(){
+  var days = lastSevenDays(replyLog, todayKey());
+  var wrap = $('streak');
+  wrap.innerHTML = '';
+  var total = 0;
+  for(var i = 0; i < days.length; i++){
+    var d = document.createElement('span');
+    d.className = 'dot' + (days[i].count > 0 ? ' on' : '') + (i === days.length - 1 ? ' today' : '');
+    d.title = days[i].date + ': ' + days[i].count + ' sent';
+    wrap.appendChild(d);
+    total += days[i].count;
+  }
+  var today = sentToday();
+  var label;
+  if(today > 0) label = today + ' sent today, ' + total + ' this week';
+  else if(total > 0) label = total + ' sent in the last seven days';
+  else label = 'No replies sent yet';
+  $('streak-label').textContent = label;
+}
+
+function render(){
+  if(!state.items.length){
+    elResults.classList.add('hidden');
+    return;
+  }
+  elResults.classList.remove('hidden');
+  var counts = countVerdicts(state.items);
+  $('t-reply').textContent = String(counts.reply);
+  $('t-maybe').textContent = String(counts.maybe);
+  $('t-pass').textContent = String(counts.pass);
+  $('t-sent').textContent = String(sentToday());
+  $('n-reply').textContent = String(counts.reply);
+  $('n-maybe').textContent = String(counts.maybe);
+  $('n-pass').textContent = String(counts.pass);
+  $('n-all').textContent = String(state.items.length);
+
+  for(var i = 0; i < filterButtons.length; i++){
+    filterButtons[i].setAttribute('aria-pressed',
+      filterButtons[i].getAttribute('data-filter') === state.filter ? 'true' : 'false');
+  }
+
+  elCards.innerHTML = '';
+  var shown = 0;
+  for(var j = 0; j < state.items.length; j++){
+    var item = state.items[j];
+    if(state.filter !== 'all' && item.verdict !== state.filter) continue;
+    elCards.appendChild(buildCard(item, j));
+    shown++;
+  }
+  if(!shown){
+    elEmptyNote.textContent = 'Nothing in this pile. Try another filter.';
+  }else{
+    elEmptyNote.textContent = '';
+  }
+}
+
+function buildCard(item, index){
+  var card = document.createElement('article');
+  card.className = 'card v-' + item.verdict + (item.sent ? ' sent' : '');
+
+  var head = document.createElement('div');
+  head.className = 'card-head';
+
+  var pill = document.createElement('span');
+  pill.className = 'pill ' + item.verdict;
+  pill.textContent = item.verdict === 'reply' ? 'Worth a reply'
+    : (item.verdict === 'maybe' ? 'Only if you know them' : 'Skip');
+  head.appendChild(pill);
+
+  var slip = document.createElement('span');
+  slip.className = 'slip';
+  slip.textContent = 'Post ' + (index + 1);
+  head.appendChild(slip);
+
+  if(item.sent){
+    var stamp = document.createElement('span');
+    stamp.className = 'sent-stamp';
+    stamp.textContent = 'Sent';
+    head.appendChild(stamp);
+  }
+  card.appendChild(head);
+
+  var post = document.createElement('p');
+  post.className = 'post' + (item.expanded ? '' : ' clamped');
+  post.innerHTML = highlightQuote(item.post, item.quote);
+  card.appendChild(post);
+
+  if(item.post.length > 240){
+    var more = document.createElement('button');
+    more.className = 'link-btn';
+    more.type = 'button';
+    more.textContent = item.expanded ? 'Show less' : 'Show full post';
+    more.onclick = function(){
+      item.expanded = !item.expanded;
+      post.className = 'post' + (item.expanded ? '' : ' clamped');
+      more.textContent = item.expanded ? 'Show less' : 'Show full post';
+    };
+    card.appendChild(more);
+  }
+
+  var reason = document.createElement('p');
+  reason.className = 'reason';
+  reason.textContent = item.reason;
+  card.appendChild(reason);
+
+  if(item.angle){
+    var angle = document.createElement('p');
+    angle.className = 'angle';
+    angle.textContent = 'You add: ' + item.angle;
+    card.appendChild(angle);
+  }
+
+  if(item.tone_note){
+    var care = document.createElement('p');
+    care.className = 'care';
+    care.textContent = 'Handle with care. ' + item.tone_note;
+    card.appendChild(care);
+  }
+
+  if(item.verdict === 'pass' && !item.reply){
+    return card;
+  }
+
+  var block = document.createElement('div');
+  block.className = 'reply-block';
+
+  var box = document.createElement('textarea');
+  box.className = 'reply-box';
+  box.value = item.reply;
+  box.setAttribute('aria-label', 'Draft reply for post ' + (index + 1));
+  block.appendChild(box);
+
+  var meta = document.createElement('div');
+  meta.className = 'meta-row';
+  var count = document.createElement('span');
+  count.className = 'count';
+  meta.appendChild(count);
+  block.appendChild(meta);
+
+  var flagRow = document.createElement('div');
+  flagRow.className = 'flags';
+  block.appendChild(flagRow);
+
+  var limit = parseInt(voice.len || '220', 10);
+  function refresh(){
+    var len = box.value.length;
+    count.textContent = len + ' of ' + limit + ' characters';
+    if(len > limit) count.className = 'count over';
+    else count.className = 'count';
+    flagRow.innerHTML = '';
+    var flags = findFlags(box.value);
+    for(var f = 0; f < flags.length; f++){
+      var chip = document.createElement('span');
+      chip.className = 'flag';
+      chip.textContent = flags[f];
+      flagRow.appendChild(chip);
+    }
+    if(flags.length){
+      var label = document.createElement('span');
+      label.className = 'count';
+      label.textContent = 'sounds like everyone else';
+      flagRow.appendChild(label);
+    }
+  }
+  box.addEventListener('input', function(){
+    item.reply = box.value;
+    refresh();
+    persist();
+  });
+  refresh();
+
+  var actions = document.createElement('div');
+  actions.className = 'actions';
+
+  var copyBtn = document.createElement('button');
+  copyBtn.className = 'btn primary';
+  copyBtn.type = 'button';
+  copyBtn.textContent = 'Copy reply';
+  copyBtn.onclick = function(){
+    copyText(box.value);
+  };
+  actions.appendChild(copyBtn);
+
+  var sentBtn = document.createElement('button');
+  sentBtn.className = 'btn';
+  sentBtn.type = 'button';
+  sentBtn.textContent = item.sent ? 'Undo sent' : 'Mark as sent';
+  sentBtn.onclick = function(){
+    item.sent = !item.sent;
+    bumpLog(item.sent ? 1 : -1);
+    persist();
+    render();
+  };
+  actions.appendChild(sentBtn);
+
+  var tone = document.createElement('select');
+  tone.className = 'tone';
+  tone.setAttribute('aria-label', 'Rewrite tone for post ' + (index + 1));
+  var tones = [
+    ['warmer', 'Warmer'],
+    ['more direct', 'More direct'],
+    ['more curious', 'More curious'],
+    ['shorter', 'Shorter'],
+    ['a polite disagreement', 'Disagree politely']
+  ];
+  for(var t = 0; t < tones.length; t++){
+    var opt = document.createElement('option');
+    opt.value = tones[t][0];
+    opt.textContent = tones[t][1];
+    tone.appendChild(opt);
+  }
+  actions.appendChild(tone);
+
+  var again = document.createElement('button');
+  again.className = 'btn';
+  again.type = 'button';
+  again.textContent = 'Rewrite';
+  var cardErr = document.createElement('p');
+  cardErr.className = 'card-err';
+
+  again.onclick = function(){
+    again.disabled = true;
+    again.textContent = 'Rewriting';
+    cardErr.textContent = '';
+    var ask = [
+      'POST:',
+      item.post,
+      '',
+      'CURRENT DRAFT:',
+      box.value,
+      '',
+      'Rewrite the reply so it is ' + tone.value + '. Keep every reply rule. Return only a JSON object: {"reply":"the new draft"}'
+    ].join('\n');
+    callClaude(systemPrompt(), ask, 800).then(function(text){
+      var parsed = parseModelJson(text);
+      var next = parsed && parsed.reply ? parsed.reply : null;
+      if(!next){ cardErr.textContent = 'The rewrite came back empty. Try once more.'; }
+      else{
+        box.value = next;
+        item.reply = next;
+        refresh();
+        persist();
+      }
+    }).catch(function(err){
+      cardErr.textContent = apiErrorMessage(err);
+    }).then(function(){
+      again.disabled = false;
+      again.textContent = 'Rewrite';
+    });
+  };
+  actions.appendChild(again);
+  block.appendChild(actions);
+  block.appendChild(cardErr);
+  card.appendChild(block);
+  return card;
+}
+
+function copyText(text){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){
+      toast('Reply copied');
+    }).catch(function(){ fallbackCopy(text); });
+  }else{
+    fallbackCopy(text);
+  }
+}
+function fallbackCopy(text){
+  try{
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', 'readonly');
+    ta.style.position = 'fixed';
+    ta.style.top = '-1000px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    if(ta.parentNode) ta.parentNode.removeChild(ta);
+    toast('Reply copied');
+  }catch(e){
+    toast('Select the text and copy it manually');
+  }
+}
+
+/* ---------------- boot ---------------- */
+(function boot(){
+  var saved = load(K_STATE, null);
+  if(saved && saved.items && saved.items.length){
+    state.items = saved.items;
+    state.filter = saved.filter || 'reply';
+    state.splitMode = saved.splitMode || 'blank';
+    for(var k = 0; k < segButtons.length; k++){
+      segButtons[k].setAttribute('aria-pressed',
+        segButtons[k].getAttribute('data-split') === state.splitMode ? 'true' : 'false');
+    }
+    render();
+  }
+  markKeyState();
+  renderStreak();
+  updateDetect();
+})();
+
+window.APP099 = {
+  splitBatch: splitBatch,
+  findFlags: findFlags,
+  highlightQuote: highlightQuote,
+  parseModelJson: parseModelJson,
+  normalizeVerdict: normalizeVerdict,
+  countVerdicts: countVerdicts,
+  lastSevenDays: lastSevenDays,
+  todayKey: todayKey,
+  escapeHtml: escapeHtml,
+  apiErrorMessage: apiErrorMessage,
+  state: state
+};
+
+})();
+</script>
+</body>
+</html>
