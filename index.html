@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link rel="manifest" href="https://augustineiacopelli.github.io/appaday/manifests/099.webmanifest">
 <script src="https://augustineiacopelli.github.io/appaday/save.js" defer></script>
+<script src="https://augustineiacopelli.github.io/appaday/keys.js" data-app="099" data-legacy-key="appaday099-key" data-accent="#C8401A" defer></script>
 <title>Social Post Responder | AppADay 099</title>
 <meta name="description" content="Paste a batch of social posts. Claude decides which ones are worth a reply from you, marks the line worth answering, and drafts a short human response for each.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -431,11 +432,7 @@ footer{
     <h2 id="settings-title">Settings</h2>
     <p class="sub">The voice notes below go into every request, so replies sound like you rather than like a brand account.</p>
 
-    <div class="field">
-      <label for="apikey">Anthropic API key</label>
-      <input id="apikey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-...">
-      <p class="note">Stored only in this browser's local storage.</p>
-    </div>
+    <div class="field" id="keyMount"><p class="note">The key manager is loading. If this stays, check your connection and reload.</p></div>
     <div class="field">
       <label for="v-name">Your name</label>
       <input id="v-name" type="text" placeholder="Augustine Iacopelli">
@@ -491,7 +488,6 @@ var API_URL = 'https://api.anthropic.com/v1/messages';
 var CHUNK = 4;
 var MAX_POSTS = 20;
 
-var K_KEY   = 'appaday099-key';
 var K_VOICE = 'appaday099-voice';
 var K_STATE = 'appaday099-state';
 var K_LOG   = 'appaday099-log';
@@ -736,21 +732,18 @@ $('sample').addEventListener('click', function(){
 /* ---------------- settings ---------------- */
 var scrimSettings = $('settings-scrim');
 function openSettings(){
-  $('apikey').value = load(K_KEY, '') || '';
+  if(window.AppKeys) window.AppKeys.mountSettings($('keyMount'));
   $('v-name').value = voice.name || '';
   $('v-role').value = voice.role || '';
   $('v-known').value = voice.known || '';
   $('v-never').value = voice.never || '';
   $('v-len').value = voice.len || '220';
   scrimSettings.classList.add('on');
-  window.setTimeout(function(){ $('apikey').focus(); }, 40);
 }
 function closeSettings(){ scrimSettings.classList.remove('on'); }
 elGear.addEventListener('click', openSettings);
 $('settings-close').addEventListener('click', closeSettings);
 $('settings-save').addEventListener('click', function(){
-  var key = $('apikey').value.replace(/^\s+|\s+$/g, '');
-  if(key){ save(K_KEY, key); } else { drop(K_KEY); }
   voice = {
     name: $('v-name').value.replace(/^\s+|\s+$/g, ''),
     role: $('v-role').value.replace(/^\s+|\s+$/g, ''),
@@ -767,8 +760,10 @@ scrimSettings.addEventListener('click', function(e){
   if(e.target === scrimSettings) closeSettings();
 });
 
+window.addEventListener('appaday:keychange', function(){ markKeyState(); });
+document.addEventListener('DOMContentLoaded', function(){ markKeyState(); });
 function markKeyState(){
-  var has = !!load(K_KEY, '');
+  var has = !!(window.AppKeys && window.AppKeys.has());
   if(has){ elGear.classList.remove('warn'); elGear.title = 'Settings'; }
   else { elGear.classList.add('warn'); elGear.title = 'Add your API key'; }
 }
@@ -841,9 +836,9 @@ function systemPrompt(){
   ].join('\n');
 }
 
-function callClaude(system, userText, maxTokens){
-  var key = load(K_KEY, '');
-  if(!key) return Promise.reject(new Error('nokey'));
+async function callClaude(system, userText, maxTokens){
+  var key = window.AppKeys ? await window.AppKeys.get() : null;
+  if(!key) throw new Error('nokey');
   return fetch(API_URL, {
     method: 'POST',
     headers: {
@@ -880,7 +875,7 @@ function callClaude(system, userText, maxTokens){
 
 function apiErrorMessage(err){
   if(!err) return 'Something went wrong. Try again.';
-  if(err.message === 'nokey') return 'Add your Anthropic API key in Settings first, then read the batch.';
+  if(err.message === 'nokey') return 'Add your Claude API key with the gear button, then read the batch again.';
   if(err.status === 401 || err.status === 403) return 'That API key was refused. Open Settings and check it.';
   if(err.status === 429) return 'The API is rate limiting this key. Wait a moment and try again.';
   if(err.status === 400) return 'The request was rejected. If a post is very long, trim it and try again.';
@@ -896,9 +891,9 @@ function runBatch(){
   var trimmed = posts.length > MAX_POSTS;
   posts = posts.slice(0, MAX_POSTS);
 
-  if(!load(K_KEY, '')){
-    showError('Add your Anthropic API key in Settings first, then read the batch.', false);
-    openSettings();
+  if(!(window.AppKeys && window.AppKeys.has())){
+    if(window.AppKeys) window.AppKeys.get();
+    showError('Add your Claude API key, then read the batch again.', false);
     return;
   }
 
