@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link rel="manifest" href="https://augustineiacopelli.github.io/appaday/manifests/099.webmanifest">
 <script src="https://augustineiacopelli.github.io/appaday/save.js" defer></script>
+<script src="https://augustineiacopelli.github.io/appaday/models.js"></script>
 <script src="https://augustineiacopelli.github.io/appaday/keys.js" data-app="099" data-legacy-key="appaday099-key" data-accent="#C8401A" defer></script>
 <title>Social Post Responder | AppADay 099</title>
 <meta name="description" content="Paste a batch of social posts. Claude decides which ones are worth a reply from you, marks the line worth answering, and drafts a short human response for each.">
@@ -483,7 +484,7 @@ footer{
 (function(){
 "use strict";
 
-var CLAUDE_MODEL = 'claude-sonnet-5';
+var CLAUDE_MODEL = (window.AppModels ? window.AppModels.id('sonnet') : '');
 var API_URL = 'https://api.anthropic.com/v1/messages';
 var CHUNK = 4;
 var MAX_POSTS = 20;
@@ -1340,15 +1341,6 @@ window.APP099 = {
 
 })();
 
-async function getModel(tier = 'sonnet') {
-  try {
-    const response = await fetch('../config.json');
-    const config = await response.json();
-    return config.models[tier];
-  } catch {
-    return 'claude-sonnet-5-5';
-  }
-}
 </script>
 </body>
 </html>

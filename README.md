@@ -28,7 +28,7 @@ A layoff, an illness, a death, or a public failure is not a networking opportuni
 
 Open the gear in the header and add your Anthropic API key. It is stored in this browser's local storage and never leaves the machine except in the request to the API. The same panel holds your voice profile: your name, what you do, what you want to be known for, the things you never say, and how long replies should run. Those notes go into every request, which is what keeps the drafts from sounding like a brand account.
 
-Requests go directly from the browser to `api.anthropic.com` using the `anthropic-dangerous-direct-browser-access` header, on model `claude-sonnet-5`.
+Requests go directly from the browser to `api.anthropic.com` using the `anthropic-dangerous-direct-browser-access` header, on the current Claude Sonnet model.
 
 ## Built with
 
